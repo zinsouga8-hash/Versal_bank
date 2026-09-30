@@ -406,7 +406,7 @@ app.get('/api/bank/clients', async (req, res) => {
       swift_code: p.swift_code || '',
       cat_code: p.cat_code || '',
       cot_code: p.cot_code || '',
-      portal_password: p.portal_password || 'Versal@2025',
+      portal_password: p.portal_password || '',
       pin: p.pin || '123456',
       balance: typeof p.balance === 'number' ? p.balance : (Number(p.balance) || 0),
       currency: p.currency || 'CAD',
@@ -622,11 +622,9 @@ app.post('/api/bank/authenticate', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Compte introuvable dans la base de données' });
     }
 
-    // Verify portal password
-    const storedPassword = profile.portal_password || '';
-    const passMatches = !storedPassword || storedPassword === password || password === 'Versal@2025';
-
-    if (!passMatches) {
+    // Verify portal password - Strict check without default backdoor
+    const storedPassword = profile.portal_password;
+    if (!storedPassword || storedPassword !== password) {
       return res.status(401).json({ success: false, error: 'Mot de passe incorrect' });
     }
 
@@ -970,10 +968,9 @@ app.post('/api/bank/authenticate', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Compte introuvable dans la base de données VersalBank' });
     }
 
-    // Check portal password if password provided
-    if (password) {
-      const expectedPassword = profile.portal_password || 'Versal@2025';
-      if (password !== expectedPassword && password !== 'Versal@2025') {
+    // Check portal password strictly
+    if (password !== undefined) {
+      if (!profile.portal_password || password !== profile.portal_password) {
         return res.status(401).json({ success: false, error: 'Mot de passe incorrect' });
       }
     }

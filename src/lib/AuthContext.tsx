@@ -27,7 +27,7 @@ export interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-export const SUPER_ADMINS = ['contact@versalpac.com', 'contact@versalbank.com', 'zinsouga8@gmail.com'];
+export const SUPER_ADMINS = ['contact@versalbank.com'];
 
 // Administrator privilege management directly synchronized with Supabase 'profiles'
 

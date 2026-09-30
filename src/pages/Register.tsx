@@ -210,7 +210,7 @@ export default function Register() {
 
       if (activeUser) {
         const userEmail = (activeUser.email || '').toLowerCase().trim();
-        const regPassword = sessionStorage.getItem('versalbank_reg_password') || password || 'Versal@2025';
+        const regPassword = sessionStorage.getItem('versalbank_reg_password') || password || '';
 
         // Save session credentials for the official account opening form
         sessionStorage.setItem('versalbank_reg_email', userEmail);

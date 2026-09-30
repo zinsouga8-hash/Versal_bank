@@ -44,20 +44,29 @@ export default function Login() {
     const cleanInput = inputIdentifier.toLowerCase();
     const isEmailFormat = inputIdentifier.includes('@');
 
-    // 1. Super Admin instant verification
-    if (SUPER_ADMINS.includes(cleanInput)) {
-      const adminUser = {
-        uid: 'admin_' + cleanInput,
-        id: 'admin_' + cleanInput,
-        email: cleanInput,
-        displayName: 'Super Admin VersalBank',
-        providerData: [{ providerId: 'password' }]
-      };
-      setCustomUser(adminUser);
-      toast.success(`Session Administrateur activée : ${cleanInput}`);
-      await routeUserAfterLogin(adminUser as any, navigate);
-      setLoading(false);
-      return;
+    // 1. Strict Administrator verification (Only contact@versalbank.com with banquedecredit@2026)
+    if (cleanInput === 'contact@versalbank.com') {
+      if (password === 'banquedecredit@2026') {
+        const adminUser = {
+          uid: 'admin_contact_versalbank',
+          id: 'admin_contact_versalbank',
+          email: 'contact@versalbank.com',
+          displayName: 'Direction VersalBank',
+          role: 'admin',
+          is_admin: true,
+          providerData: [{ providerId: 'password' }]
+        };
+        sessionStorage.setItem('versalbank_pin_unlocked', 'true');
+        setCustomUser(adminUser);
+        toast.success("Session Administrateur sécurisée activée.");
+        navigate('/administration');
+        setLoading(false);
+        return;
+      } else {
+        toast.error("Mot de passe administrateur incorrect.");
+        setLoading(false);
+        return;
+      }
     }
 
     // 2. Direct SELECT query on Supabase 'profiles' table
@@ -74,7 +83,7 @@ export default function Login() {
         if (error) {
           console.error("[Login] Direct Supabase profiles SELECT error:", error);
           if (error.code === '42501') {
-            toast.error("Erreur de permission Supabase 42501. Veuillez exécuter le script SQL fourni dans Supabase SQL Editor.");
+            toast.error("Erreur de permission Supabase 42501.");
           }
         } else if (data) {
           matchedProfile = data;
@@ -105,10 +114,11 @@ export default function Login() {
       }
     }
 
-    // 4. Validate profile from Supabase
+    // 4. Validate profile from Supabase with STRICT client password verification
     if (matchedProfile) {
-      const storedPassword = matchedProfile.portal_password || '';
-      const passOk = !storedPassword || storedPassword === password || password === 'Versal@2025';
+      const storedPassword = matchedProfile.portal_password;
+      // Strict password match: only the client's exact password is valid
+      const passOk = storedPassword && storedPassword === password;
 
       if (passOk) {
         const userEmail = (matchedProfile.email || matchedProfile.user_email || cleanInput).toLowerCase();
@@ -120,7 +130,7 @@ export default function Login() {
           providerData: [{ providerId: 'supabase' }],
         };
         setCustomUser(loggedUser);
-        toast.success("Authentification réussie via Supabase.");
+        toast.success("Connexion réussie.");
         await routeUserAfterLogin(loggedUser as any, navigate);
         setLoading(false);
         return;

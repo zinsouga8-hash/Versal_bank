@@ -279,7 +279,7 @@ export default function AdminClients() {
         : `SWIFT-${Math.floor(100000 + Math.random() * 900000)}`,
       cat_code: client.cat_code || `CAT-${Math.floor(100000 + Math.random() * 900000)}`,
       cot_code: client.cot_code || `COT-${Math.floor(100000 + Math.random() * 900000)}`,
-      portal_password: client.portal_password || 'Versal@2025',
+      portal_password: client.portal_password || '',
       pin: client.pin || '1234',
       balance: client.balance !== undefined ? client.balance : 0,
       currency: client.currency || 'CAD',

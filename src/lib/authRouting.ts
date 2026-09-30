@@ -51,28 +51,21 @@ export async function routeUserAfterLogin(user: AuthUser | any, navigate: (path:
   }
 
   const emailNorm = user.email.trim().toLowerCase();
-  const isSuper = SUPER_ADMINS.includes(emailNorm);
+  const isAdminEmail = emailNorm === 'contact@versalbank.com';
 
-  // 1. Check if user is SuperAdmin or configured Admin
-  if (isSuper) {
+  // 1. Check if user is the official Admin
+  if (isAdminEmail) {
     sessionStorage.setItem('versalbank_pin_unlocked', 'true');
-    toast.success(`Bienvenue, Administrateur principal (${emailNorm})`);
+    toast.success(`Bienvenue, Direction VersalBank`);
     navigate('/administration');
     return;
   }
 
-  // 2. Check client account by email or UID via Supabase bank service
+  // 2. Client account routing via Supabase bank service (never admin)
   try {
     const clientAccount = await getClientProfileByEmailOrId(emailNorm);
 
     if (clientAccount) {
-      if (clientAccount.is_admin === true || clientAccount.role === 'admin' || clientAccount.role === 'superadmin') {
-        sessionStorage.setItem('versalbank_pin_unlocked', 'true');
-        toast.success(`Bienvenue, Administrateur (${emailNorm})`);
-        navigate('/administration');
-        return;
-      }
-
       if (clientAccount.status === 'approved') {
         notifySecurityAlert({
           user_email: emailNorm,
