@@ -1,0 +1,208 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email != null && (
+        request.auth.token.email.lower() == 'contact@versalbank.com' ||
+        request.auth.token.email.lower() == 'zinsouga8@gmail.com' ||
+        exists(/databases/$(database)/documents/Admins/$(request.auth.token.email)) ||
+        exists(/databases/$(database)/documents/Admins/$(request.auth.token.email.lower()))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128;
+    }
+
+    // -- Collection: Admins
+    match /Admins/{email} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+    }
+
+    // -- Collection: PendingVerifications
+    match /PendingVerifications/{docId} {
+      allow read, write: if true;
+    }
+
+    // -- Collection: ClientAccounts
+    match /ClientAccounts/{accountId} {
+      function isValidClientAccount(data) {
+        return data.keys().hasAll(['user_email'])
+          && data.user_email is string && data.user_email.size() <= 128;
+      }
+      
+      allow get: if isAdmin() || (isSignedIn() && (accountId == request.auth.uid || resource == null || resource.data.user_email == request.auth.token.email));
+      allow list: if isAdmin() || (isSignedIn() && resource.data.user_email == request.auth.token.email);
+      allow create: if isSignedIn() && (isAdmin() || (incoming().user_email == request.auth.token.email && isValidClientAccount(incoming())));
+      allow update: if isAdmin() || (
+        isSignedIn() 
+        && (accountId == request.auth.uid || resource.data.user_email == request.auth.token.email)
+        && isValidClientAccount(incoming())
+      );
+      allow delete: if isAdmin();
+    }
+
+    // -- Collection: Movements
+    match /Movements/{movementId} {
+      function isValidMovement(data) {
+        return data.keys().hasAll(['client_email'])
+          && data.client_email is string && data.client_email.size() <= 128;
+      }
+      allow get: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow create: if (isAdmin() || (isSignedIn() && incoming().client_email == request.auth.token.email)) && isValidMovement(incoming());
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && resource.data.client_email == request.auth.token.email
+        && incoming().client_email == resource.data.client_email
+        && isValidMovement(incoming())
+      );
+      allow delete: if isAdmin();
+    }
+
+    // -- Collection: VirtualCards
+    match /VirtualCards/{cardId} {
+      function isValidCard(data) {
+        return data.keys().hasAll(['client_email'])
+          && data.client_email is string && data.client_email.size() <= 128;
+      }
+      allow get: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow create: if (isAdmin() || (isSignedIn() && incoming().client_email == request.auth.token.email)) && isValidCard(incoming());
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && resource.data.client_email == request.auth.token.email
+        && incoming().client_email == resource.data.client_email
+        && isValidCard(incoming())
+      );
+      allow delete: if isAdmin();
+    }
+
+    // -- Collection: Loans & LoanApplications
+    match /Loans/{loanId} {
+      function isValidLoan(data) {
+        return data.keys().hasAll(['client_email'])
+          && data.client_email is string && data.client_email.size() <= 128;
+      }
+      allow get: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow create: if (isAdmin() || (isSignedIn() && incoming().client_email == request.auth.token.email)) && isValidLoan(incoming());
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && resource.data.client_email == request.auth.token.email
+        && incoming().client_email == resource.data.client_email
+        && isValidLoan(incoming())
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /LoanApplications/{loanId} {
+      function isValidLoanApp(data) {
+        return data.keys().hasAll(['client_email'])
+          && data.client_email is string && data.client_email.size() <= 128;
+      }
+      allow get: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow create: if (isAdmin() || (isSignedIn() && incoming().client_email == request.auth.token.email)) && isValidLoanApp(incoming());
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && resource.data.client_email == request.auth.token.email
+        && incoming().client_email == resource.data.client_email
+        && isValidLoanApp(incoming())
+      );
+      allow delete: if isAdmin();
+    }
+
+    // -- Collection: ProfileChanges & ProfileChangeRequests
+    match /ProfileChanges/{requestId} {
+      function isValidProfileChange(data) {
+        return data.keys().hasAll(['client_email'])
+          && data.client_email is string && data.client_email.size() <= 128;
+      }
+      allow get: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow create: if isSignedIn() && (isAdmin() || incoming().client_email == request.auth.token.email) && isValidProfileChange(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /ProfileChangeRequests/{requestId} {
+      function isValidProfileChangeRequest(data) {
+        return data.keys().hasAll(['client_email'])
+          && data.client_email is string && data.client_email.size() <= 128;
+      }
+      allow get: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow create: if isSignedIn() && (isAdmin() || incoming().client_email == request.auth.token.email) && isValidProfileChangeRequest(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // -- Collection: BankSettings & Settings
+    match /BankSettings/{settingId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+    }
+
+    match /Settings/{settingId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+    }
+
+    // -- Collection: PaymentChannels
+    match /PaymentChannels/{channelId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+    }
+
+    // -- Collection: BlockedIps
+    match /BlockedIps/{ipId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+    }
+
+    // -- Collection: ClientMessages
+    match /ClientMessages/{msgId} {
+      function isValidMessage(data) {
+        return data.keys().hasAll(['client_email'])
+          && data.client_email is string && data.client_email.size() <= 128;
+      }
+      allow get: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.client_email == request.auth.token.email);
+      allow create: if (isAdmin() || (isSignedIn() && incoming().client_email == request.auth.token.email)) && isValidMessage(incoming());
+      // Client can mark message as read, admin can fully manage
+      allow update: if isAdmin() || (
+        isSignedIn()
+        && resource.data.client_email == request.auth.token.email
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // -- Collection: SentEmails
+    match /SentEmails/{emailId} {
+      allow get: if isAdmin() || (isSignedIn() && resource.data.recipient == request.auth.token.email);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.recipient == request.auth.token.email);
+      allow create: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="shieldGrad" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#143975" />
+      <stop offset="50%" stop-color="#0b224c" />
+      <stop offset="100%" stop-color="#051228" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="16" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="35%" stop-color="#e8f0fe" />
+      <stop offset="70%" stop-color="#c5d9f8" />
+      <stop offset="100%" stop-color="#8bb4eb" />
+    </linearGradient>
+    <linearGradient id="bevelGrad" x1="32" y1="6" x2="32" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.5" />
+      <stop offset="100%" stop-color="#1e3a8a" stop-opacity="0" />
+    </linearGradient>
+    <filter id="shadow" x="0" y="2" width="64" height="60" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Outer Protective Shield -->
+  <path d="M32 6L10 14V30C10 44 19 54 32 58C45 54 54 44 54 30V14L32 6Z" fill="url(#shieldGrad)" stroke="url(#goldGrad)" stroke-width="2.5" stroke-linejoin="round" filter="url(#shadow)" />
+  
+  <!-- Inner Bevel Highlight -->
+  <path d="M32 10L14 16.5V30C14 41.5 21.5 49.5 32 53.5C42.5 49.5 50 41.5 50 30V16.5L32 10Z" fill="url(#bevelGrad)" />
+
+  <!-- Monogram V & Arch Banking Pillar -->
+  <path d="M21 21L32 45L43 21H37.5L32 35.5L26.5 21H21Z" fill="url(#goldGrad)" />
+  
+  <!-- Sovereign Crown Apex -->
+  <path d="M26.5 21C26.5 17.8 28.9 15.5 32 15.5C35.1 15.5 37.5 17.8 37.5 21" stroke="url(#goldGrad)" stroke-width="2.2" stroke-linecap="round" fill="none" />
+  
+  <!-- Center Platinum Star Accent -->
+  <circle cx="32" cy="22.5" r="1.8" fill="#ffffff" />
+</svg>

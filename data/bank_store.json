@@ -1,0 +1,26 @@
+{
+  "clients": [
+    {
+      "id": "client_1789480664022",
+      "status": "pending",
+      "balance": 0,
+      "currency": "CAD",
+      "client_id": "VSL-123456",
+      "first_name": "Test",
+      "last_name": "User",
+      "user_email": "test@user.com"
+    }
+  ],
+  "loans": [],
+  "cards": [],
+  "movements": [],
+  "settings": {
+    "bank_name": "VersalBank",
+    "support_email": "contact@versalbank.com",
+    "admin_email": "contact@versalbank.com",
+    "default_currency": "CAD",
+    "maintenance_mode": false,
+    "fintrac_reg_number": "M20849201"
+  },
+  "emails": []
+}

@@ -1,0 +1,6 @@
+{
+  "name": "VersalBank",
+  "description": "Application web bancaire de nouvelle génération combinant gestion de patrimoine prestige et solutions numériques sécurisées.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

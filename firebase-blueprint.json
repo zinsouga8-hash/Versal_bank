@@ -1,0 +1,282 @@
+{
+  "rulesVersion": "2",
+  "roles": [
+    {
+      "name": "admin",
+      "description": "Administrator of the bank",
+      "condition": "exists(/databases/$(database)/documents/Admins/$(request.auth.token.email)) || request.auth.token.email == 'contact@versalbank.com' || request.auth.token.email == 'zinsouga8@gmail.com'"
+    },
+    {
+      "name": "client",
+      "description": "Authenticated client",
+      "condition": "request.auth != null"
+    }
+  ],
+  "collections": {
+    "Admins": {
+      "description": "Collection dédiée des administrateurs pour la sécurisation de la route /administration",
+      "schema": {
+        "email": "string",
+        "role": "string",
+        "addedAt": "number",
+        "addedBy": "string",
+        "notes": "string"
+      },
+      "permissions": {
+        "read": "true",
+        "write": "admin"
+      }
+    },
+    "ClientAccounts": {
+      "description": "Client accounts",
+      "schema": {
+        "user_email": "string",
+        "client_id": "string",
+        "portal_password": "string",
+        "pin": "string",
+        "first_name": "string",
+        "last_name": "string",
+        "birth_date": "string",
+        "nationality": "string",
+        "country": "string",
+        "city": "string",
+        "address": "string",
+        "postal_code": "string",
+        "phone": "string",
+        "language": "string",
+        "client_type": "string",
+        "employment_status": "string",
+        "profession": "string",
+        "monthly_income": "string",
+        "employed_since": "string",
+        "documents": "array",
+        "terms_accepted": "boolean",
+        "age_confirmed": "boolean",
+        "status": "string",
+        "account_active": "boolean",
+        "account_number": "string",
+        "iban": "string",
+        "bic": "string",
+        "swift_code": "string",
+        "cat_code": "string",
+        "balance": "number",
+        "currency": "string",
+        "admin_note": "string"
+      },
+      "permissions": {
+        "read": "admin || (client && (resource == null || resource.data.user_email == request.auth.token.email || request.auth.uid == resource.id))",
+        "create": "client",
+        "update": "admin || (client && (resource.data.user_email == request.auth.token.email || request.auth.uid == resource.id))",
+        "delete": "admin"
+      }
+    },
+    "Movements": {
+      "description": "Bank movements",
+      "schema": {
+        "account_id": "string",
+        "client_id": "string",
+        "client_email": "string",
+        "kind": "string",
+        "direction": "string",
+        "method": "string",
+        "amount": "number",
+        "currency": "string",
+        "beneficiary_name": "string",
+        "beneficiary_country": "string",
+        "beneficiary_details": "string",
+        "motif": "string",
+        "reference": "string",
+        "status": "string"
+      },
+      "permissions": {
+        "read": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "create": "admin || (client && request.resource.data.client_email == request.auth.token.email)",
+        "update": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "delete": "admin"
+      }
+    },
+    "VirtualCards": {
+      "description": "Virtual cards",
+      "schema": {
+        "account_id": "string",
+        "client_id": "string",
+        "client_email": "string",
+        "holder_name": "string",
+        "brand": "string",
+        "tier": "string",
+        "number": "string",
+        "cvc": "string",
+        "cvc_visible": "boolean",
+        "expiry": "string",
+        "daily_limit": "number",
+        "monthly_limit": "number",
+        "balance": "number",
+        "status": "string",
+        "transfer_enabled": "boolean",
+        "shipping_requested": "boolean",
+        "ship_country": "string",
+        "ship_city": "string",
+        "ship_address": "string",
+        "ship_postal_code": "string",
+        "ship_steps": "array"
+      },
+      "permissions": {
+        "read": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "create": "admin || (client && request.resource.data.client_email == request.auth.token.email)",
+        "update": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "delete": "admin"
+      }
+    },
+    "LoanApplications": {
+      "description": "Loan applications",
+      "schema": {
+        "account_id": "string",
+        "client_id": "string",
+        "client_email": "string",
+        "project": "string",
+        "project_details": "string",
+        "amount": "number",
+        "duration_months": "number",
+        "rate": "number",
+        "monthly_payment": "number",
+        "contract_signed_url": "string",
+        "contract_signed": "boolean",
+        "status": "string"
+      },
+      "permissions": {
+        "read": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "create": "admin || (client && request.resource.data.client_email == request.auth.token.email)",
+        "update": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "delete": "admin"
+      }
+    },
+    "ProfileChangeRequests": {
+      "description": "Profile change requests",
+      "schema": {
+        "account_id": "string",
+        "client_id": "string",
+        "client_email": "string",
+        "changes": "array",
+        "status": "string"
+      },
+      "permissions": {
+        "read": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "create": "admin || (client && request.resource.data.client_email == request.auth.token.email)",
+        "update": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "delete": "admin"
+      }
+    },
+    "BankSettings": {
+      "description": "Global bank settings",
+      "schema": {
+        "legal_name": "string",
+        "head_office": "string",
+        "support_email": "string",
+        "sender_email": "string",
+        "service_email": "string",
+        "admin_notify_email": "string",
+        "admin_pin": "string",
+        "phone": "string",
+        "whatsapp": "string",
+        "opening_hours": "string",
+        "registration_info": "string",
+        "bank_name": "string",
+        "bank_suffix": "string",
+        "logo_url": "string",
+        "bic": "string",
+        "usdt_card_address": "string",
+        "loan_rate_default": "number",
+        "loan_rates": "map",
+        "loan_contract_template": "string",
+        "loan_contract_template_url": "string",
+        "tpl_account_received": "string",
+        "tpl_account_created": "string",
+        "tpl_account_approved": "string",
+        "tpl_account_activated": "string",
+        "tpl_card_activated": "string",
+        "tpl_movement_update": "string",
+        "tpl_loan_received": "string",
+        "footer_about": "string",
+        "footer_rights": "string",
+        "footer_links": "array"
+      },
+      "permissions": {
+        "read": "true",
+        "write": "admin"
+      }
+    },
+    "PaymentChannels": {
+      "description": "Payment channels",
+      "schema": {
+        "name": "string",
+        "category": "string",
+        "coordinates": "string",
+        "instructions": "string",
+        "usage": "string",
+        "active": "boolean"
+      },
+      "permissions": {
+        "read": "true",
+        "write": "admin"
+      }
+    },
+    "BlockedIps": {
+      "description": "Blocked IPs",
+      "schema": {
+        "ip": "string",
+        "reason": "string",
+        "active": "boolean"
+      },
+      "permissions": {
+        "read": "true",
+        "write": "admin"
+      }
+    },
+    "ClientMessages": {
+      "description": "Client-admin messages",
+      "schema": {
+        "client_email": "string",
+        "client_id": "string",
+        "subject": "string",
+        "body": "string",
+        "read": "boolean"
+      },
+      "permissions": {
+        "read": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "create": "admin || (client && request.resource.data.client_email == request.auth.token.email)",
+        "update": "admin || (client && resource.data.client_email == request.auth.token.email)",
+        "delete": "admin"
+      }
+    },
+    "SentEmails": {
+      "description": "Audited transactional and system emails dispatched",
+      "schema": {
+        "recipient": "string",
+        "recipientName": "string",
+        "type": "string",
+        "subject": "string",
+        "title": "string",
+        "status": "string",
+        "createdAt": "number"
+      },
+      "permissions": {
+        "read": "admin || (client && resource.data.recipient == request.auth.token.email)",
+        "create": "true",
+        "write": "admin"
+      }
+    },
+    "PendingVerifications": {
+      "description": "Temporary OTP verification storage",
+      "schema": {
+        "email": "string",
+        "code": "string",
+        "createdAt": "number",
+        "expiresAt": "number"
+      },
+      "permissions": {
+        "read": "true",
+        "write": "true"
+      }
+    }
+  }
+}

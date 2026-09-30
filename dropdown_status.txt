@@ -1,0 +1,9 @@
+                    <select
+                      value={move.status}
+                      onChange={(e) => handleUpdateStatus(move, e.target.value as any)}
+                      className="text-xs h-8 rounded-lg border border-slate-200 px-2 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-[#0f2b5c]/20"
+                    >
+                      <option value="pending">En attente</option>
+                      <option value="completed">Approuvé</option>
+                      <option value="failed">Rejeté</option>
+                    </select>

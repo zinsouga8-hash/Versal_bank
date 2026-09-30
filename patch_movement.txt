@@ -1,0 +1,29 @@
+  const handleUpdateStatus = async (move: any, newStatus: MovementStatus) => {
+    try {
+      const isCredit = move.direction === 'credit' || move.type === 'deposit';
+      const moveAmount = Number(move.amount) || 0;
+      const client = clients.find(c => c.id === move.account_id || c.id === move.user_id || c.user_email === move.user_email);
+
+      if (client) {
+        let newBalance = client.balance || 0;
+        
+        // Revert previous effect if it was completed
+        if (move.status === 'completed' && newStatus !== 'completed') {
+          if (isCredit) newBalance -= moveAmount;
+          else newBalance += moveAmount;
+        }
+        
+        // Apply new effect if becoming completed
+        if (move.status !== 'completed' && newStatus === 'completed') {
+          if (isCredit) newBalance += moveAmount;
+          else newBalance = Math.max(0, newBalance - moveAmount);
+        }
+        
+        await saveClientToSupabase({ id: client.id, balance: newBalance });
+      }
+
+      await saveTransactionToSupabase({ ...move, status: newStatus });
+      setMovements(prev => prev.map(m => m.id === move.id ? { ...m, status: newStatus } : m));
+
+      if (move.user_email || move.client_email) {
+        notifyMovementStatusUpdated(

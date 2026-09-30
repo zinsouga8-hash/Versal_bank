@@ -1,0 +1,475 @@
+import React, { useEffect, useState } from 'react';
+import { 
+  fetchTransactionsFromSupabase, 
+  saveTransactionToSupabase, 
+  deleteTransactionFromSupabase,
+  fetchClientsFromSupabase,
+  saveClientToSupabase,
+  subscribeToBankData
+} from '../../lib/supabaseBankService';
+import { ClientAccount, MovementKind, MovementDirection, MovementStatus } from '../../types';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { toast } from 'sonner';
+import { Loader2, Plus, RefreshCw, ArrowUpRight, ArrowDownLeft, Trash2, Clock, CheckCircle2, ArrowLeftRight } from 'lucide-react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { notifyMovementStatusUpdated } from '../../lib/emailService';
+
+export default function AdminMovements() {
+  const [movements, setMovements] = useState<any[]>([]);
+  const [clients, setClients] = useState<(ClientAccount & { id: string })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  // New manual movement form
+  const [targetClientId, setTargetClientId] = useState<string>('');
+  const [kind, setKind] = useState<MovementKind>('deposit');
+  const [direction, setDirection] = useState<MovementDirection>('credit');
+  const [amount, setAmount] = useState<number>(1000);
+  const [currency, setCurrency] = useState<string>('CAD');
+  const [method, setMethod] = useState<string>('Virement Bancaire International');
+  const [motif, setMotif] = useState<string>('Crédit de compte / Dépôt de fonds');
+  const [beneficiaryName, setBeneficiaryName] = useState<string>('');
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const txData = await fetchTransactionsFromSupabase();
+      setMovements(txData);
+
+      const clientData = await fetchClientsFromSupabase();
+      setClients(clientData);
+      if (clientData.length > 0 && !targetClientId) {
+        setTargetClientId(clientData[0].id);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Erreur lors de la récupération des mouvements.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const unsub = subscribeToBankData(() => {
+      fetchData();
+    });
+    return () => unsub();
+  }, []);
+
+  const handleUpdateStatus = async (move: any, newStatus: MovementStatus) => {
+    try {
+      const isCredit = move.direction === 'credit' || move.type === 'deposit';
+      const moveAmount = Number(move.amount) || 0;
+      const client = clients.find(c => c.id === move.account_id || c.id === move.user_id || c.user_email === move.user_email);
+
+      if (client) {
+        let newBalance = client.balance || 0;
+        
+        // Revert previous effect if it was completed
+        if (move.status === 'completed' && newStatus !== 'completed') {
+          if (isCredit) newBalance -= moveAmount;
+          else newBalance += moveAmount;
+        }
+        
+        // Apply new effect if becoming completed
+        if (move.status !== 'completed' && newStatus === 'completed') {
+          if (isCredit) newBalance += moveAmount;
+          else newBalance = Math.max(0, newBalance - moveAmount);
+        }
+        
+        await saveClientToSupabase({ id: client.id, balance: newBalance });
+      }
+
+      await saveTransactionToSupabase({ ...move, status: newStatus });
+      setMovements(prev => prev.map(m => m.id === move.id ? { ...m, status: newStatus } : m));
+
+      if (move.user_email || move.client_email) {
+        notifyMovementStatusUpdated(
+          { user_email: move.user_email || move.client_email },
+          { id: move.id, amount: move.amount, currency: move.currency || 'CAD', type: move.type || 'transfer', status: newStatus }
+        ).catch(err => console.warn('Email notify note:', err));
+      }
+
+      toast.success(`Mouvement marqué ${newStatus}.`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Erreur lors de la mise à jour du mouvement.");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Voulez-vous supprimer l'enregistrement de ce mouvement ?")) return;
+    try {
+      await deleteTransactionFromSupabase(id);
+      setMovements(prev => prev.filter(m => m.id !== id));
+      toast.success("Mouvement supprimé.");
+    } catch (e) {
+      console.error(e);
+      toast.error("Erreur de suppression.");
+    }
+  };
+
+  const handleCreateMovement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetClient = clients.find(c => c.id === targetClientId);
+    if (!targetClient) {
+      toast.error("Veuillez sélectionner un client.");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const numAmount = Number(amount);
+
+      const newMovementData = {
+        user_id: targetClient.id,
+        account_id: targetClient.id,
+        user_email: targetClient.user_email || '',
+        client_email: targetClient.user_email || '',
+        client_id: targetClient.client_id || '',
+        type: kind,
+        direction: direction,
+        method: method,
+        amount: numAmount,
+        currency: currency,
+        description: motif,
+        reference: refCode,
+        status: 'completed',
+        date: new Date().toISOString(),
+        createdAt: Date.now(),
+      };
+
+      await saveTransactionToSupabase(newMovementData);
+
+      // Adjust client balance
+      let newBalance = targetClient.balance || 0;
+      if (direction === 'credit') {
+        newBalance += numAmount;
+      } else {
+        newBalance -= numAmount;
+      }
+      await saveClientToSupabase({ id: targetClient.id, balance: newBalance });
+
+      if (targetClient.user_email) {
+        notifyMovementStatusUpdated(
+          { user_email: targetClient.user_email },
+          { id: newMovementData.id, amount: numAmount, currency: currency, type: kind, status: 'completed' }
+        ).catch(err => console.warn('Email notify note:', err));
+      }
+
+      toast.success(`Mouvement créé et solde de ${targetClient.first_name} ${targetClient.last_name} ajusté.`);
+      setModalOpen(false);
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      toast.error("Erreur lors de la création du mouvement.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const filteredMovements = movements.filter(m => {
+    if (filterType === 'all') return true;
+    return m.type === filterType || m.kind === filterType;
+  });
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* Top Controls */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg sm:text-xl font-serif font-bold text-slate-900">
+            Dépôts, Retraits & Virements Bancaires
+          </h2>
+          <p className="text-xs text-slate-500">
+            Historique certifié, approbations manuelles et ajustements comptables en temps réel.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={fetchData} 
+            disabled={loading}
+            className="text-xs border-slate-200 text-slate-700 hover:bg-slate-50 h-10 rounded-xl cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} /> Actualiser
+          <Button 
+            className="bg-[#0f2b5c] hover:bg-[#0f2b5c]/90 text-white text-xs h-10 px-4 rounded-xl font-medium cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" /> Nouveau Mouvement
+        </div>
+      </div>
+
+      {/* Movement List: Mobile cards on <sm, Desktop table on >=sm */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <Loader2 className="w-8 h-8 animate-spin mb-3 text-[#0f2b5c]" />
+          <p className="text-sm font-medium">Chargement des opérations comptables...</p>
+        </div>
+      ) : filteredMovements.length === 0 ? (
+        <div className="text-center py-16 bg-slate-50 rounded-2xl border border-slate-200">
+          <ArrowLeftRight className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+          <p className="text-sm font-medium text-slate-600">Aucun mouvement enregistré.</p>
+        </div>
+      ) : (
+        <>
+          {/* Mobile view */}
+          <div className="block sm:hidden space-y-3">
+            {filteredMovements.map((move) => {
+              const isCredit = move.direction === 'credit' || move.type === 'deposit';
+
+              return (
+                <div key={move.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                        {isCredit ? (
+                          <span className="text-emerald-600 flex items-center gap-1">
+                            <ArrowDownLeft className="w-3.5 h-3.5" /> Crédit
+                          </span>
+                        ) : (
+                          <span className="text-rose-600 flex items-center gap-1">
+                            <ArrowUpRight className="w-3.5 h-3.5" /> Débit
+                          </span>
+                        <span className="font-mono text-xs text-slate-400">({move.reference || 'REF'})</span>
+                      </div>
+                      <div className="text-xs text-slate-500 truncate max-w-[220px]">
+                        {move.user_email || move.client_email}
+                      </div>
+                    </div>
+
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                      move.status === 'completed'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : move.status === 'pending'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {move.status === 'completed' ? 'Validé' : move.status === 'pending' ? 'En attente' : 'Rejeté'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-slate-500 truncate max-w-[180px]">
+                      {move.description || move.motif || 'Opération bancaire'}
+                    </span>
+                    <span className={`font-mono font-bold text-sm ${isCredit ? 'text-emerald-700' : 'text-slate-900'}`}>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 rounded-xl font-medium"
+                      >
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs h-8 text-rose-600 hover:bg-rose-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /></Button>
+                  </div>
+                </div>
+              );
+          </div>
+
+          {/* Desktop view */}
+          <div className="hidden sm:block border border-slate-200 rounded-2xl overflow-hidden overflow-x-auto shadow-xs">
+            <Table>
+              <TableHeader className="bg-slate-50">
+                <TableRow>
+                  <TableHead className="text-xs font-semibold text-slate-600">Client / Réf</TableHead>
+                  <TableHead className="text-xs font-semibold text-slate-600">Type / Direction</TableHead>
+                  <TableHead className="text-xs font-semibold text-slate-600">Motif / Description</TableHead>
+                  <TableHead className="text-xs font-semibold text-slate-600 text-right">Montant</TableHead>
+                  <TableHead className="text-xs font-semibold text-slate-600">Statut</TableHead>
+                  <TableHead className="text-xs font-semibold text-slate-600 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredMovements.map((move) => {
+                  const isCredit = move.direction === 'credit' || move.type === 'deposit';
+
+                  return (
+                    <TableRow key={move.id} className="hover:bg-slate-50/80 transition-colors">
+                      <TableCell>
+                        <div className="font-semibold text-slate-900 text-xs sm:text-sm">
+                          {move.user_email || move.client_email || 'Client'}
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-400">
+                          {move.reference || move.id}
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${
+                          isCredit ? 'text-emerald-700' : 'text-slate-700'
+                        }`}>
+                          {isCredit ? <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-600" /> : <ArrowUpRight className="w-3.5 h-3.5 text-rose-600" />}
+                          {isCredit ? 'Crédit / Dépôt' : 'Débit / Retrait'}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-xs text-slate-600 max-w-[200px] truncate">
+                        {move.description || move.motif || 'Opération courante'}
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        <span className={`font-mono font-bold text-sm ${isCredit ? 'text-emerald-700' : 'text-slate-900'}`}>
+                        </span>
+                        <span className="text-xs font-semibold text-slate-500 ml-1">
+                          {move.currency || 'CAD'}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                          move.status === 'completed' 
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                            : move.status === 'pending' 
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                            : 'bg-rose-100 text-rose-800 border border-rose-200'
+                        }`}>
+                          {move.status === 'completed' ? 'Validé' : move.status === 'pending' ? 'En attente' : 'Rejeté'}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                            <Button 
+                              size="sm" 
+                              className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                            >
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-xs h-8 text-rose-600 hover:bg-rose-50 cursor-pointer p-2"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+              </TableBody>
+            </Table>
+          </div>
+        </>
+
+      {/* NEW MOVEMENT MODAL */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-lg w-[95vw] p-4 sm:p-6 rounded-2xl sm:rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-serif font-bold text-slate-900">
+              Saisir un Mouvement Comptable
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateMovement} className="space-y-4 pt-2">
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Client Bénéficiaire / Débiteur</Label>
+              <Select value={targetClientId} onValueChange={setTargetClientId}>
+                <SelectTrigger className="mt-1 h-10 rounded-xl bg-slate-50 text-sm">
+                  <SelectValue placeholder="Sélectionner un client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.first_name} {c.last_name} ({c.user_email}) — Solde: {c.balance} {c.currency}
+                    </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-semibold text-slate-700">Sens Comptable</Label>
+                  <SelectTrigger className="mt-1 h-10 rounded-xl bg-slate-50 text-sm font-semibold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="credit">Crédit (+) — Dépôt de fonds</SelectItem>
+                    <SelectItem value="debit">Débit (-) — Retrait / Sortie</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold text-slate-700">Type d'opération</Label>
+                  <SelectTrigger className="mt-1 h-10 rounded-xl bg-slate-50 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="deposit">Dépôt externe</SelectItem>
+                    <SelectItem value="transfer">Virement bancaire</SelectItem>
+                    <SelectItem value="withdrawal">Retrait guichet</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-semibold text-slate-700">Montant</Label>
+                <Input 
+                  type="number" 
+                  step="0.01" 
+                  value={amount} 
+                  className="mt-1 h-10 rounded-xl bg-slate-50 font-bold"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold text-slate-700">Devise</Label>
+                <Select value={currency} onValueChange={setCurrency}>
+                  <SelectTrigger className="mt-1 h-10 rounded-xl bg-slate-50 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CAD">CAD ($ Canadien)</SelectItem>
+                    <SelectItem value="USD">USD ($ US)</SelectItem>
+                    <SelectItem value="EUR">EUR (€ Euro)</SelectItem>
+                    <SelectItem value="GBP">GBP (£ Sterling)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Motif de l'opération (Libellé visible client)</Label>
+              <Input 
+                value={motif} 
+                className="mt-1 h-10 rounded-xl bg-slate-50 text-sm"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="rounded-xl text-xs h-10 px-4 cursor-pointer"
+              >
+                Annuler
+              <Button 
+                type="submit" 
+                disabled={creating}
+                className="bg-[#0f2b5c] hover:bg-[#0f2b5c]/90 text-white rounded-xl text-xs h-10 px-6 font-semibold cursor-pointer"
+              >
+                {creating ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
