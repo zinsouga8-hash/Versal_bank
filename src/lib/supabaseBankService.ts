@@ -78,6 +78,11 @@ function getLocal<T>(key: string, defaultVal: T): T {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return defaultVal;
+    // Auto-clean stale clients cache if it contains deprecated Versal@2025 fallback
+    if (key === STORAGE_KEYS.CLIENTS && raw.includes('Versal@2025')) {
+      localStorage.removeItem(key);
+      return defaultVal;
+    }
     return JSON.parse(raw);
   } catch {
     return defaultVal;
@@ -251,7 +256,7 @@ export async function fetchClientsPaginatedFromSupabase(params: {
   // 2. Fallback: Direct Supabase query with range() (omits heavy documents field)
   if (isSupabaseConfigured) {
     try {
-      const selectCols = 'id, client_id, first_name, last_name, full_name, email, phone, country, city, address, postal_code, nationality, birth_date, profession, monthly_income, employed_since, client_type, account_number, iban, bic, swift_code, cat_code, cot_code, balance, currency, status, account_active, admin_note, role, is_admin, created_at';
+      const selectCols = 'id, client_id, first_name, last_name, full_name, email, phone, country, city, address, postal_code, nationality, birth_date, profession, monthly_income, employed_since, client_type, account_number, iban, bic, swift_code, cat_code, cot_code, portal_password, pin, balance, currency, status, account_active, admin_note, role, is_admin, created_at';
       let query = supabase
         .from('profiles')
         .select(selectCols, { count: 'exact' });

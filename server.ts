@@ -344,7 +344,7 @@ app.get('/api/bank/clients', async (req, res) => {
 
     // When paginated, select only list fields (omit heavy documents array)
     const selectCols = isPaginated
-      ? 'id, client_id, first_name, last_name, full_name, email, phone, country, city, address, postal_code, nationality, account_number, iban, bic, swift_code, cat_code, cot_code, balance, currency, status, account_active, admin_note, role, is_admin, created_at'
+      ? 'id, client_id, first_name, last_name, full_name, email, phone, country, city, address, postal_code, nationality, account_number, iban, bic, swift_code, cat_code, cot_code, portal_password, pin, balance, currency, status, account_active, admin_note, role, is_admin, created_at'
       : '*';
 
     let query = supabaseServer
@@ -981,27 +981,7 @@ app.post('/api/bank/authenticate', async (req, res) => {
   }
 });
 
-// Single client fetch
-app.get('/api/bank/profile/:identifier', async (req, res) => {
-  try {
-    const identifier = req.params.identifier.trim().toLowerCase();
-    const { data, error } = await supabaseServer
-      .from('profiles')
-      .select('*')
-      .or(`email.ilike.${identifier},client_id.eq.${identifier},account_number.eq.${identifier}`)
-      .maybeSingle();
-
-    if (error) {
-      return res.status(400).json({ success: false, error: error.message, code: error.code });
-    }
-    if (!data) {
-      return res.status(404).json({ success: false, error: 'Profil introuvable' });
-    }
-    return res.json({ success: true, profile: data });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err?.message });
-  }
-});
+// Single client fetch handled above at line 561
 
 // ============================================================================
 // 1. LOANS API (Direct Supabase Persistence - Multi-Device)

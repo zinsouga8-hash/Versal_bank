@@ -291,14 +291,15 @@ export default function AdminClients() {
 
     // On-demand load full dossier profile in background for this specific client
     try {
-      const full = await fetchClientDetailedProfile(client.id);
+      const full = await fetchClientDetailedProfile(client.id || client.client_id || (client as any).email || client.user_email);
       if (full) {
         setSelectedClient(prev => prev ? { ...prev, ...full } : null);
+        const resolvedPassword = full.portal_password || client.portal_password || '';
         setEditForm(prev => ({
           ...prev,
           ...full,
           balance: full.balance !== undefined ? full.balance : prev.balance,
-          portal_password: full.portal_password || prev.portal_password,
+          portal_password: resolvedPassword,
           pin: full.pin || prev.pin,
           cat_code: full.cat_code || prev.cat_code,
           cot_code: full.cot_code || prev.cot_code,
